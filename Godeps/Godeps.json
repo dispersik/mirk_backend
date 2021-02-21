@@ -1,0 +1,6 @@
+{
+	"ImportPath": "github.com/dispersik/mirk_backend",
+	"GoVersion": "go1.16",
+	"GodepVersion": "v80",
+	"Deps": []
+}
