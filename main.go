@@ -25,7 +25,7 @@ type User struct {
 var Messages []Message
 
 func homePage(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Welcome to the HomePage!")
+	fmt.Fprintf(w, "Welcome to the HomePage of Mirk!")
 	fmt.Println("Endpoint Hit: homePage")
 }
 
