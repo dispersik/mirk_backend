@@ -6,8 +6,8 @@ import (
 	"log"
 	"net/http"
 	// "github.com/gorilla/mux"
+	"os"
 	"time"
-    "os"
 )
 
 type Message struct {
@@ -31,7 +31,14 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 
 func returnAllMessages(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Endpoint Hit: returnAllMessages")
-	json.NewEncoder(w).Encode(Messages)
+	switch r.Method {
+	case "GET":
+		json.NewEncoder(w).Encode(Messages)
+	case "POST":
+		fmt.Fprintf("POST method not supported yet")
+	default:
+		fmt.Fprintf("Only GET and POST methods are supported")
+	}
 }
 
 func handleRequests() {
