@@ -12,11 +12,12 @@ import (
 )
 
 type Message struct {
-	Text        string    `json:"txt"`
-	Dt          time.Time `json:"dt"`
-	Source      User      `json:"source"`
-	Destination User      `json:"destination"`
-	ChatId      int       `json:"chat"`
+    Id            int       `json:"id"`
+	Text          string    `json:"txt"`
+	Dt            time.Time `json:"dt"`
+	SourceId      int       `json:"src"`
+	DestinationId int       `json:"dest"`
+	ChatId        int       `json:"chatId"`
 }
 
 type User struct {
@@ -33,6 +34,13 @@ type Chat struct {
 var Messages []Message
 var Chats []Chat
 var Users []User
+
+func getLastMessageId() int {
+    if len(Messages) == 0 {
+        return 0
+    }
+    return Messages[len(Messages)-1].Id + 1
+}
 
 func getLastUserId() int {
 	if len(Users) == 0 {
@@ -59,25 +67,35 @@ func getLastChatId() int {
 
 //TODO add errors
 func chatsWithUser(user User) []Chat {
-    var chats []Chat
-    for _, chat := range Chats {
-        for _, chatUser := range chat.Users {
-            if chatUser.Id == user.Id {
-                chats = append(chats, chat)
-            }
-        }
-    }
-    return chats
+	var chats []Chat
+	for _, chat := range Chats {
+		for _, chatUser := range chat.Users {
+			if chatUser.Id == user.Id {
+				chats = append(chats, chat)
+			}
+		}
+	}
+	return chats
 }
 
 //TODO add errors
 func findUserById(id int) User {
-    for _, u := range Users {
-        if u.Id == id {
-            return u
-        }
-    }
-    return User{}
+	for _, u := range Users {
+		if u.Id == id {
+			return u
+		}
+	}
+	return User{}
+}
+
+func messagesFromChat(id int) []Message {
+	var messages []Message
+	for _, m := range Messages {
+		if m.ChatId == id {
+			messages = append(messages, m)
+		}
+	}
+	return messages
 }
 
 func homePage(w http.ResponseWriter, r *http.Request) {
@@ -88,19 +106,47 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 func messagesRoute(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Endpoint Hit: messagesRoute")
 	switch r.Method {
-	//getChatMessages(chatId)
+	//get all messages for admin, get all messages for chat
 	case "GET":
-
-		json.NewEncoder(w).Encode(Messages)
-
-		//sendMessage(m)
+		// get all messages for chat
+		if len(r.FormValue("chatId")) != 0 {
+			chatId, err := strconv.Atoi(r.FormValue("chatId"))
+			if err != nil {
+				fmt.Println("Err while parsing chat id")
+				fmt.Fprintf(w, "Please specify some correct chat id")
+			}
+			json.NewEncoder(w).Encode(messagesFromChat(chatId))
+		} else {
+			if len(r.FormValue("adminKey")) != 0 {
+				json.NewEncoder(w).Encode(Messages)
+			}
+			fmt.Fprintf(w, "Please specify some chatId")
+		}
+	//send message
 	case "POST":
-		fmt.Fprintf(w, "sourceId: %s\n", r.FormValue("srcId"))
-		fmt.Fprintf(w, "destinationId: %s\n", r.FormValue("destId"))
-
+		if m := r.FormValue("message"); len(m) != 0 {
+			var message Message
+			json.Unmarshal([]byte(m), &message)
+            message.Id = getLastMessageId()
+			//TODO validate message
+			Messages = append(Messages, message)
+			fmt.Fprintf(w, "Message added\n")
+            fmt.Fprintf(w, "id: %v\n", message.Id)
+			fmt.Fprintf(w, "txt: %v\n", message.Text)
+			fmt.Fprintf(w, "dt: %v\n", message.Dt)
+			fmt.Fprintf(w, "src: %v\n", message.SourceId)
+			fmt.Fprintf(w, "dest: %v\n", message.DestinationId)
+			fmt.Fprintf(w, "chatId: %v", message.ChatId)
+		}
 	//deleteMessage(m)
 	case "DELETE":
-
+        if id := r.FormValue("id");len(id)!=0 {
+            i, err := strconv.Atoi(id)
+            if err != nil {
+                fmt.Println("Err while parsing message id")
+            }
+            Messages = append(Messages[:i], Messages[i+1:]...)
+        }
 	default:
 		fmt.Fprintf(w, "Only GET and POST methods are supported")
 	}
@@ -118,7 +164,13 @@ func usersRoute(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Added new user with nickname: %s\n", r.FormValue("nickname"))
 	//delete user
 	case "DELETE":
-
+        if id := r.FormValue("id");len(id)!=0 {
+            i, err := strconv.Atoi(id)
+            if err != nil {
+                fmt.Println("Err while parsing user id")
+            }
+            Users = append(Users[:i], Users[i+1:]...)
+        }
 	default:
 		fmt.Fprintf(w, "Only GET and POST methods are supported")
 	}
@@ -149,37 +201,44 @@ func chatsRoute(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	//get all chats for admin and for user
 	case "GET":
-        // get all chats for user
-        if len(r.FormValue("userId"))!=0 {
-            userId, err := strconv.Atoi(r.FormValue("userId"))
-            if err != nil {
-                fmt.Println("Err while parsing user id")
-                fmt.Fprintf(w, "Please specify some correct user id")
-            }
-            json.NewEncoder(w).Encode(chatsWithUser(findUserById(userId)))    
-        } else {
-            if len(r.FormValue("adminKey"))!=0 {
-                json.NewEncoder(w).Encode(Chats)
-            }
-            fmt.Fprintf(w, "Please specify some userId")
-        }
+		// get all chats for user
+		if len(r.FormValue("userId")) != 0 {
+			userId, err := strconv.Atoi(r.FormValue("userId"))
+			if err != nil {
+				fmt.Println("Err while parsing user id")
+				fmt.Fprintf(w, "Please specify some correct user id")
+			}
+			json.NewEncoder(w).Encode(chatsWithUser(findUserById(userId)))
+		} else {
+			if len(r.FormValue("adminKey")) != 0 {
+				json.NewEncoder(w).Encode(Chats)
+			}
+			fmt.Fprintf(w, "Please specify some userId")
+		}
 	//create new chat
 	case "POST":
 		str := r.FormValue("users")
-		
-        var users []User
-        json.Unmarshal([]byte(str), &users)
+
+		var users []User
+		json.Unmarshal([]byte(str), &users)
 
 		chat := Chat{Id: getLastChatId(), Users: users}
 		Chats = append(Chats, chat)
-		
-        fmt.Fprintf(w, "newChat:\n id: %v\n users:\n", chat.Id)
+
+		fmt.Fprintf(w, "newChat:\n id: %v\n users:\n", chat.Id)
 		for _, u := range users {
 			fmt.Fprintf(w, "  id: %v\n  nickname: %s\n", u.Id, u.Nickname)
 		}
 	//delete chat
 	case "DELETE":
-
+        //validate user by token
+        if id := r.FormValue("id");len(id)!=0 {
+            i, err := strconv.Atoi(id)
+            if err != nil {
+                fmt.Println("Err while parsing message id")
+            }
+            Chats = append(Chats[:i], Chats[i+1:]...)
+        }
 	default:
 		fmt.Fprintf(w, "Only GET and POST methods are supported")
 	}
